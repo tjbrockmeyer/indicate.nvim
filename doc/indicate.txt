@@ -1,0 +1,90 @@
+*indicate.txt*  Keep the pass/fail state of your checks visible
+
+==============================================================================
+INTRODUCTION                                                *indicate*
+
+Indicate keeps the pass/fail state of your checks (tests, linters, builds, ...)
+visible while you edit. For every repository it stores a `.indicate` directory
+holding a `config.json` and the result, file hash and logs of the last run of
+each indicator.
+
+The panel shows one line per indicator: a green dot when the last run exited 0,
+a red dot when it exited non-zero, a grey dot when it never ran, a yellow half
+dot while it is running, and a `*` suffix when the files matched by the
+indicator's glob patterns changed since the last run.
+
+==============================================================================
+COMMANDS                                                  *indicate-commands*
+
+:Indicate                                                    *:Indicate*
+    Toggle the indicator panel on the right hand side of the screen. When the
+    cwd is not inside a repository with a `.indicate` directory yet, the panel
+    offers to create one.
+
+==============================================================================
+PANEL                                                        *indicate-panel*
+
+The panel is a side window listing the indicators of the repository:
+
+    r       run the indicator under the cursor
+    R       run all indicators, each in its own process
+    l       show the logs of the last run of the indicator under the cursor
+    n       create a new indicator, walking through the attributes one at a
+            time. The new indicator is run once and its output shown so it can
+            be validated before it is kept
+    e       edit the indicator under the cursor
+    J       move the indicator under the cursor down in config.json
+    K       move the indicator under the cursor up in config.json
+    q       close the panel
+
+Selecting an attribute in the editor opened by `e` previews its current value
+in the pane on the right; <CR> edits it and `q` quits. Changes are written back
+to `config.json` immediately.
+
+The panel refreshes on |BufWritePost|, on |FocusGained| and when the |cwd|
+moves to another repository.
+
+==============================================================================
+CONFIGURATION                                            *indicate-config*
+
+`<repo root>/.indicate/config.json` holds:
+
+    {
+      "version": 1,
+      "indicators": [
+        {
+          "name": "unit tests",
+          "cwd": ".",
+          "command": "go test ./...",
+          "files": ["**/*.go", "go.mod"]
+        }
+      ]
+    }
+
+`cwd` is relative to the repository root (absolute paths are allowed) and the
+globs in `files` are relative to that `cwd`. `**` does not match dotfiles.
+
+The `.indicate` directory is created at the repository top level
+(`git rev-parse --show-toplevel`, falling back to `jj root`, then the cwd) and
+is located again by walking up the tree from the cwd:
+
+    .indicate/
+    |- config.json
+    |- runs/
+       |- unit_tests-result   exit code of the last run
+       |- unit_tests-hash     hash of the matched files at that time
+       |- unit_tests-logs     stdout/stderr of the last run
+
+==============================================================================
+OPTIONS                                                  *indicate-options*
+
+>lua
+    require("indicate").setup({
+      panel = { width = 32, hints = true },
+      refresh_debounce = 300, -- ms
+      max_log_lines = 2000,
+      notify_on_run = false,
+    })
+<
+
+vim:tw=78:ts=8:noet:ft=help:norl:
