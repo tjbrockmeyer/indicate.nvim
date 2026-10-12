@@ -85,6 +85,7 @@ the cwd moves to another repository.
 ```
 .indicate/
 ├── config.json
+├── indicate.log          # debug/performance log (`debug` option)
 └── runs/
     ├── unit_tests-result   # exit code of the last run
     ├── unit_tests-hash     # hash of the matched files at that time
@@ -103,5 +104,23 @@ require("indicate").setup({
   refresh_debounce = 300, -- ms
   max_log_lines = 2000,
   notify_on_run = false,
+  debug = true, -- timing log in .indicate/indicate.log
 })
 ```
+
+With `debug` enabled, the operations that can plausibly be slow - walking the
+file tree, reading and hashing the matched files, the `git`/`jj` lookups,
+rendering the panel, spawning a run - are timed and appended to
+`.indicate/indicate.log`, one line per operation. Nested operations are
+indented, so a slow outer operation can be traced back to the inner one that
+dominates it:
+
+```
+2025-06-01 10:00:00 | panel.refresh: 18.40 ms
+2025-06-01 10:00:00 |   state.status(unit tests): 15.10 ms
+2025-06-01 10:00:00 |     hash.hash: 14.90 ms 1203 file(s)
+2025-06-01 10:00:00 |       hash.files: 9.70 ms 1203 file(s)
+```
+
+Set `debug = false` to stop writing the log; it is rotated to
+`indicate.log.1` once it grows past 2 MiB.

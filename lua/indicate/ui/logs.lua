@@ -1,6 +1,7 @@
 --- Logs window for the last run of an indicator.
 local config = require("indicate.config")
 local opts = require("indicate.opts")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -82,4 +83,5 @@ function M.open(cfg, ind, o)
 	pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
 end
 
+M.open = log.wrap("logs.open", M.open)
 return M

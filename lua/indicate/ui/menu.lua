@@ -4,6 +4,7 @@
 --- `vim.ui.select` fallback.
 local config = require("indicate.config")
 local prompt = require("indicate.ui.prompt")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -260,4 +261,5 @@ function M.edit(cfg, ind, attr)
 	end)
 end
 
+M.pick = log.wrap("menu.pick", M.pick)
 return M

@@ -2,6 +2,7 @@
 local config = require("indicate.config")
 local hash = require("indicate.hash")
 local opts = require("indicate.opts")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -94,9 +95,12 @@ function M.run(cfg, ind, o)
 	end
 	running[slug] = true
 	config.changed()
-	local ok, err = pcall(vim.system, { vim.o.shell, "-c", ind.command }, { cwd = cwd, text = true }, function(res)
+	local started = log.now()
+	log.line("run '%s' started (cwd %s)", ind.name, cwd)
+	local ok, err = log.measure("runner.spawn", pcall, vim.system, { vim.o.shell, "-c", ind.command }, { cwd = cwd, text = true }, function(res)
 		vim.schedule(function()
 			running[slug] = nil
+			log.line("run '%s' finished in %.0f ms (exit %s)", ind.name, log.elapsed(started), tostring(res.code))
 			local digest = select(1, hash.hash(cwd, ind.files, cfg.root))
 			M.write(cfg, ind, res, digest)
 			config.changed()

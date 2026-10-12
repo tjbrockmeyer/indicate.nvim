@@ -3,6 +3,7 @@ local config = require("indicate.config")
 local opts = require("indicate.opts")
 local runner = require("indicate.runner")
 local status = require("indicate.state")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -269,4 +270,7 @@ function M.refresh()
 	line_map = map
 end
 
+M.refresh = log.wrap("panel.refresh", M.refresh)
+M.open = log.wrap("panel.open", M.open)
+M.reload = log.wrap("panel.reload", M.reload)
 return M

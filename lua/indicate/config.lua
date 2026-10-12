@@ -1,4 +1,5 @@
 --- Repository scoped `.indicate` directory and `config.json` handling.
+local log = require("indicate.log")
 local M = {}
 
 M.dirname = ".indicate"
@@ -192,6 +193,7 @@ end
 --- @return indicate.Config? cfg, string? err
 function M.load(dir)
 	dir = vim.fs.normalize(dir)
+	log.set_dir(dir)
 	local path = vim.fs.joinpath(dir, M.config_file)
 	local raw = M.read(path)
 	if not raw then
@@ -256,6 +258,7 @@ function M.initialize(root)
 			return nil, tostring(err)
 		end
 	end
+	log.set_dir(dir)
 	if vim.fn.filereadable(path) == 1 then
 		return M.load(dir)
 	end
@@ -361,4 +364,11 @@ function M.changed()
 	vim.api.nvim_exec_autocmds("User", { pattern = "IndicateChanged" })
 end
 
+M.find = log.wrap("config.find", M.find)
+M.root = log.wrap("config.root", M.root)
+M.load = log.wrap("config.load", M.load)
+M.save = log.wrap("config.save", M.save)
+M.write = log.wrap("config.write", M.write)
+M.initialize = log.wrap("config.initialize", M.initialize)
+M.open = log.wrap("config.open", M.open)
 return M

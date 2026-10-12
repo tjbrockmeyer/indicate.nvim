@@ -2,6 +2,7 @@
 local config = require("indicate.config")
 local hash = require("indicate.hash")
 local runner = require("indicate.runner")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -74,4 +75,6 @@ function M.dot(status)
 	return "●", "IndicateNever"
 end
 
+M.read = log.wrap("state.read", M.read)
+M.status = log.wrap("state.status", M.status)
 return M

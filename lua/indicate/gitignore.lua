@@ -12,6 +12,7 @@
 --- Deliberate simplification: git cannot re-include a file below an ignored
 --- directory, this implementation can.
 local glob = require("indicate.glob")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -185,4 +186,5 @@ function M.ignored(ignores, path, is_dir)
 	return false
 end
 
+M.load = log.wrap("gitignore.load", M.load)
 return M

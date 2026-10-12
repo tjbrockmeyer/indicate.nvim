@@ -10,6 +10,7 @@
 --- never descended into. See `indicate/glob.lua` for the pattern matching.
 local gitignore = require("indicate.gitignore")
 local glob = require("indicate.glob")
+local log = require("indicate.log")
 
 local M = {}
 
@@ -128,6 +129,7 @@ end
 --- @param root string? repository root (the parent of `.indicate`)
 --- @return string[] absolute paths
 function M.files(cwd, patterns, root)
+	local token = log.start("hash.files")
 	local seen, files = {}, {}
 	local ignores = gitignore.load(root or cwd, cwd)
 	local direct, groups = {}, {}
@@ -193,6 +195,7 @@ function M.files(cwd, patterns, root)
 	end
 
 	table.sort(files)
+	log.stop(token, "%d file(s)", #files)
 	return files
 end
 
@@ -231,6 +234,7 @@ end
 --- @param root string? repository root (the parent of `.indicate`)
 --- @return string hash, integer count
 function M.hash(cwd, patterns, root)
+	local token = log.start("hash.hash")
 	local parts = {}
 	for _, path in ipairs(M.files(cwd, patterns, root)) do
 		local digest = file_hash(path)
@@ -238,6 +242,7 @@ function M.hash(cwd, patterns, root)
 			parts[#parts + 1] = (vim.fs.relpath(cwd, path) or path) .. "\0" .. digest
 		end
 	end
+	log.stop(token, "%d file(s)", #parts)
 	return vim.fn.sha256(table.concat(parts, "\n")), #parts
 end
 

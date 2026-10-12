@@ -13,6 +13,9 @@ local M = {
 	max_log_lines = 2000,
 	--- notify when a manual run finishes
 	notify_on_run = false,
+	--- write timing of potentially slow operations to
+	--- `<repo>/.indicate/indicate.log`
+	debug = true,
 	--- replace the git/jj top level lookup entirely (mainly for tests)
 	root = nil,
 }

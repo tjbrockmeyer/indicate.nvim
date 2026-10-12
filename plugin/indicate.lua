@@ -69,6 +69,7 @@ local function autocmds()
 			if timer then
 				timer:stop()
 			end
+			require("indicate.log").close()
 		end,
 	})
 end
