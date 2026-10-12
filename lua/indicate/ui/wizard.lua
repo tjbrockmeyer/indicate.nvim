@@ -1,6 +1,5 @@
 --- Guided creation of a new indicator.
 local config = require("indicate.config")
-local runner = require("indicate.runner")
 local prompt_ui = require("indicate.ui.prompt")
 
 local M = {}
@@ -48,44 +47,7 @@ local function ask(prompt, default, validate)
 	end
 end
 
---- Run the freshly created indicator once and let the user validate the output.
---- @param cfg indicate.Config
---- @param ind indicate.Indicator
-function M.test(cfg, ind)
-	local started, err = runner.run(cfg, ind, {
-		notify = false,
-		callback = function(res)
-			local logs = require("indicate.ui.logs")
-			logs.open(cfg, ind)
-			local passed = res.code == 0
-			vim.notify(
-				("Indicate: test run of '%s' finished with exit code %s"):format(ind.name, tostring(res.code)),
-				passed and vim.log.levels.INFO or vim.log.levels.WARN
-			)
-			vim.ui.select(
-				{ "Keep indicator", "Edit attributes", "Discard indicator" },
-				{ prompt = ("Indicate: keep '%s'?"):format(ind.name) },
-				function(choice)
-					if choice == "Edit attributes" then
-						require("indicate.ui.menu").attributes(cfg, ind)
-					elseif choice == "Discard indicator" then
-						config.remove(cfg, ind)
-						config.remove_artifacts(cfg, ind)
-						config.save(cfg)
-						config.changed()
-						vim.notify(("Indicate: discarded '%s'"):format(ind.name), vim.log.levels.INFO)
-					end
-				end
-			)
-		end,
-	})
-	if not started then
-		vim.notify("Indicate: could not run the test: " .. tostring(err), vim.log.levels.ERROR)
-	end
-end
-
---- Walk the user through creating one attribute at a time, then test the new
---- indicator.
+--- Walk the user through creating one attribute at a time.
 --- @param cfg indicate.Config
 function M.create(cfg)
 	local co = coroutine.create(function()
@@ -142,8 +104,7 @@ function M.create(cfg)
 			return
 		end
 		config.changed()
-		vim.notify(("Indicate: created '%s', running it once to test"):format(ind.name), vim.log.levels.INFO)
-		M.test(cfg, ind)
+		vim.notify(("Indicate: created '%s'"):format(ind.name), vim.log.levels.INFO)
 	end)
 
 	local ok, err = coroutine.resume(co)

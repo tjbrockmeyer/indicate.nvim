@@ -30,8 +30,7 @@ The panel is a side window listing the indicators of the repository:
     R       run all indicators, each in its own process
     l       show the logs of the last run of the indicator under the cursor
     n       create a new indicator, walking through the attributes one at a
-            time. The new indicator is run once and its output shown so it can
-            be validated before it is kept
+            time
     e       edit the indicator under the cursor
     J       move the indicator under the cursor down in config.json
     K       move the indicator under the cursor up in config.json

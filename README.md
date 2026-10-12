@@ -72,8 +72,7 @@ with a `.indicate` directory yet, the panel offers to create one.
 | `q` | close the panel                                 |
 
 - `n` walks through the attributes one at a time (name, cwd, command, glob
-  patterns), runs the new indicator once and shows the output so you can
-  validate it before keeping it.
+  patterns) and adds the new indicator to `config.json`.
 - `e` opens the attribute menu of the indicator under the cursor; hovering an
   attribute previews its current value in the pane on the right, `<CR>` edits
   it, `q` quits. Attributes are written back to `config.json` immediately.
