@@ -97,7 +97,7 @@ function M.run(cfg, ind, o)
 	local ok, err = pcall(vim.system, { vim.o.shell, "-c", ind.command }, { cwd = cwd, text = true }, function(res)
 		vim.schedule(function()
 			running[slug] = nil
-			local digest = select(1, hash.hash(cwd, ind.files))
+			local digest = select(1, hash.hash(cwd, ind.files, cfg.root))
 			M.write(cfg, ind, res, digest)
 			config.changed()
 			if o.callback then

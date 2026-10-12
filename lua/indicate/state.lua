@@ -47,7 +47,7 @@ function M.status(cfg, ind)
 	end
 	local dirty = false
 	if stored.hash and stored.hash ~= "" then
-		local current = select(1, hash.hash(config.resolve_cwd(cfg, ind), ind.files))
+		local current = select(1, hash.hash(config.resolve_cwd(cfg, ind), ind.files, cfg.root))
 		dirty = current ~= stored.hash
 	end
 	return {

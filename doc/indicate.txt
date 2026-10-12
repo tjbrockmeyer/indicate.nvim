@@ -63,6 +63,11 @@ CONFIGURATION                                            *indicate-config*
 
 `cwd` is relative to the repository root (absolute paths are allowed) and the
 globs in `files` are relative to that `cwd`. `**` does not match dotfiles.
+Files are found by walking the tree, so `.gitignore`d directories, symlinked
+directories and these directories are never entered: `.git`, `.jj`,
+`.indicate`, `.venv`, `venv`, `node_modules`, `__pycache__`, `.mypy_cache`,
+`.pytest_cache`, `.ruff_cache`, `.tox`, `.gradle`, `.next`, `.nuxt`, `.turbo`,
+`.parcel-cache`, `.cache`. Patterns matching files inside them find nothing.
 
 The `.indicate` directory is created at the repository top level
 (`git rev-parse --show-toplevel`, falling back to `jj root`, then the cwd) and

@@ -1,5 +1,8 @@
 # Indicate
 
+> This repo is entirely vibe-coded. I cannot be bothered to learn the intricacies of neovim plugin creation.
+> Instead, I can simply get the plugin I want in pretty quick time. I don't care what the code looks like.
+
 Keep the pass/fail state of your checks (tests, linters, builds, …) visible
 while you edit.
 
@@ -45,6 +48,12 @@ of each one. The panel shows a dot per indicator:
 - `command` – shell command, run with `&shell`.
 - `files` – glob patterns of the files this check depends on, relative to
   `cwd`. `**` does not match dotfiles, so write `.github/**/*.yml` explicitly.
+  Files are found by walking the tree, so `.gitignore`d directories,
+  symlinked directories and these directories are never entered: `.git`,
+  `.jj`, `.indicate`, `.venv`, `venv`, `node_modules`, `__pycache__`,
+  `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.tox`, `.gradle`, `.next`,
+  `.nuxt`, `.turbo`, `.parcel-cache`, `.cache`. Patterns matching files inside
+  them find nothing.
 
 ## Usage
 
