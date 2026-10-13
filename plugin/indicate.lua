@@ -79,6 +79,7 @@ local function autocmds()
 			if timer then
 				timer:stop()
 			end
+			require("indicate.hash").save_cache()
 			require("indicate.log").close()
 		end,
 	})

@@ -2,7 +2,8 @@
 ---
 --- A hash is the sha256 of a sorted list of `relative-path\0sha256(contents)`
 --- entries. Individual file hashes are cached in memory and keyed by
---- (size, mtime), so repeated refreshes only re-read files that changed.
+--- (size, mtime), and the cache is persisted to `.indicate/hash-cache.json`,
+--- so repeated refreshes and new sessions only re-read files that changed.
 ---
 --- The matched file list is cached as well, together with the mtimes of the
 --- directories that were walked. It is reused until one of those directories
@@ -20,6 +21,14 @@ local M = {}
 
 --- @type table<string, { size: integer, mtime: integer, hash: string }>
 local cache = {}
+--- Directory the persisted file hash cache is read from and written to.
+local cache_dir
+--- Whether `cache` gained entries since it was last persisted.
+local cache_dirty = false
+--- Bump to discard persisted caches written by an older format.
+local cache_version = 1
+--- Name of the persisted file hash cache inside the `.indicate` directory.
+local cache_name = "hash-cache.json"
 
 --- Matched file lists, keyed by `cwd\0root\0patterns`.
 --- @type table<string, { files: string[], dirs: table<string, integer|false>, time: integer }>
@@ -72,8 +81,92 @@ end
 --- Drop the in memory file hash and file list caches.
 function M.clear()
 	cache = {}
+	cache_dirty = false
 	list_cache = {}
 	list_cache_size = 0
+end
+
+--- @param path string
+--- @return string?
+local function read_text(path)
+	local fd = io.open(path, "r")
+	if not fd then
+		return nil
+	end
+	local contents = fd:read("*a")
+	fd:close()
+	return contents
+end
+
+--- Point the file hash cache at a repository's `.indicate` directory, loading
+--- the persisted entries when it changes. The cache is keyed by (size, mtime),
+--- so a new session only reads the files that actually changed since it was
+--- written instead of re-reading every matched file.
+--- @param dir string?
+function M.set_dir(dir)
+	if type(dir) ~= "string" or dir == "" then
+		return
+	end
+	dir = vim.fs.normalize(dir)
+	if dir == cache_dir then
+		return
+	end
+	M.save_cache()
+	cache_dir = dir
+	cache = {}
+	cache_dirty = false
+	local raw = read_text(vim.fs.joinpath(dir, cache_name))
+	if not raw then
+		return
+	end
+	local ok, decoded = pcall(vim.json.decode, raw)
+	if not ok or type(decoded) ~= "table" or decoded.version ~= cache_version or type(decoded.files) ~= "table" then
+		return
+	end
+	local count = 0
+	for file, entry in pairs(decoded.files) do
+		if
+			type(file) == "string"
+			and type(entry) == "table"
+			and type(entry.size) == "number"
+			and type(entry.mtime) == "number"
+			and type(entry.hash) == "string"
+		then
+			cache[file] = { size = entry.size, mtime = entry.mtime, hash = entry.hash }
+			count = count + 1
+		end
+	end
+	log.line("hash.cache: loaded %d entries", count)
+end
+
+--- Persist the file hash cache, when it gained entries since the last save.
+function M.save_cache()
+	if not cache_dir or not cache_dirty then
+		return
+	end
+	local files, count = {}, 0
+	for file, entry in pairs(cache) do
+		files[file] = { size = entry.size, mtime = entry.mtime, hash = entry.hash }
+		count = count + 1
+	end
+	local ok, encoded = pcall(vim.json.encode, { version = cache_version, files = files })
+	if not ok then
+		return
+	end
+	local file = vim.fs.joinpath(cache_dir, cache_name)
+	local tmp = file .. ".tmp"
+	local fd = io.open(tmp, "w")
+	if not fd then
+		return
+	end
+	fd:write(encoded)
+	fd:close()
+	if not vim.uv.fs_rename(tmp, file) then
+		pcall(vim.uv.fs_unlink, tmp)
+		return
+	end
+	cache_dirty = false
+	log.line("hash.cache: saved %d entries", count)
 end
 
 local function is_ignored(path)
@@ -396,6 +489,7 @@ function M.digest(path, stats)
 	local read = vim.uv.hrtime()
 	local digest = vim.fn.sha256(contents)
 	cache[path] = { size = stat.size, mtime = mtime, hash = digest }
+	cache_dirty = true
 	if stats then
 		stats.read = stats.read + 1
 		stats.bytes = stats.bytes + #contents
@@ -437,6 +531,9 @@ end
 --- @param root string? repository root (the parent of `.indicate`)
 --- @return string hash, integer count, table<string, string> per-file entries, string[] matched files
 function M.hash(cwd, patterns, root)
+	if type(root) == "string" and root ~= "" then
+		M.set_dir(vim.fs.joinpath(root, ".indicate"))
+	end
 	local token = log.start("hash.hash")
 	local files = M.files(cwd, patterns, root)
 	local parts = {}
@@ -458,6 +555,7 @@ function M.hash(cwd, patterns, root)
 		stats.sha_ns / 1e6,
 		stats.cached
 	)
+	M.save_cache()
 	return digest, count, parts, files
 end
 

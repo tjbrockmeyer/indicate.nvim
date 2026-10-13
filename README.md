@@ -86,6 +86,7 @@ the cwd moves to another repository.
 .indicate/
 ├── config.json
 ├── indicate.log          # debug/performance log (`debug` option)
+├── hash-cache.json       # cached per-file digests, keyed by size/mtime
 └── runs/
     ├── unit_tests-result   # exit code of the last run
     ├── unit_tests-hash     # hash of the matched files at that time
@@ -126,6 +127,8 @@ The matched file list is cached and reused across refreshes, so editing a file
 does not walk the tree; it is only re-walked when a directory changes (a file
 added, removed or renamed). A write re-hashes just the written file for the
 indicators whose patterns match it; the rest of the cached list is reused.
+Per-file digests are cached in `.indicate/hash-cache.json`, keyed by size and
+mtime, so a new Neovim session only reads the files that changed since the last.
 
 Set `debug = false` to stop writing the log; it is rotated to
 `indicate.log.1` once it grows past 2 MiB.
