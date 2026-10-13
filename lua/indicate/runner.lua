@@ -6,13 +6,22 @@ local log = require("indicate.log")
 
 local M = {}
 
---- @type table<string, boolean> slugs of indicators with a command in flight
+--- @class indicate.Run
+--- @field name string indicator name
+--- @field command string shell command that is running
+--- @field cwd string directory the command runs in
+--- @field time string wall clock time the run started
+--- @field started integer `uv.hrtime` value the run started at
+--- @field stdout string[] output chunks of stdout received so far
+--- @field stderr string[] output chunks of stderr received so far
+
+--- @type table<string, indicate.Run> in flight runs, keyed by indicator slug
 local running = {}
 
 --- @param name string
 --- @return boolean
 function M.is_running(name)
-	return running[config.slug(name)] == true
+	return running[config.slug(name)] ~= nil
 end
 
 --- @param name string
@@ -21,7 +30,7 @@ function M.count(name)
 	return running[config.slug(name)] and 1 or 0
 end
 
---- @return string[] names of indicators that are currently running
+--- @return string[] slugs of indicators that are currently running
 function M.running_names()
 	local names = {}
 	for slug in pairs(running) do
@@ -31,22 +40,25 @@ function M.running_names()
 	return names
 end
 
---- @param ind indicate.Indicator
---- @param cwd string
---- @param res vim.SystemCompleted
+--- The in-flight run of an indicator, with the output received so far. The
+--- returned table is live: it is mutated as more output arrives, so a caller
+--- that keeps a reference sees the current state.
+--- @param name string
+--- @return indicate.Run? run
+function M.progress(name)
+	return running[config.slug(name)]
+end
+
+--- @param o { command: string, cwd: string, time: string, exit: string, stdout: string, stderr: string }
 --- @return string
-local function log_contents(ind, cwd, res)
-	local stdout = (res.stdout or ""):gsub("\n+$", "")
-	local stderr = (res.stderr or ""):gsub("\n+$", "")
-	local exit = tostring(res.code)
-	if res.signal and res.signal ~= 0 then
-		exit = exit .. (" (signal %d)"):format(res.signal)
-	end
+local function format_logs(o)
+	local stdout = (o.stdout or ""):gsub("\n+$", "")
+	local stderr = (o.stderr or ""):gsub("\n+$", "")
 	local lines = {
-		"$ " .. ind.command,
-		"cwd: " .. cwd,
-		"time: " .. os.date("%Y-%m-%d %H:%M:%S"),
-		"exit: " .. exit,
+		"$ " .. o.command,
+		"cwd: " .. o.cwd,
+		"time: " .. o.time,
+		"exit: " .. o.exit,
 		"",
 		"--- stdout ---",
 		stdout,
@@ -58,16 +70,52 @@ local function log_contents(ind, cwd, res)
 	return table.concat(lines, "\n")
 end
 
+--- The logs of an in-flight run, as lines, showing the output received so far.
+--- @param name string
+--- @return string[]? lines nil when the indicator is not running
+function M.progress_lines(name)
+	local run = M.progress(name)
+	if not run then
+		return nil
+	end
+	local text = format_logs({
+		command = run.command,
+		cwd = run.cwd,
+		time = run.time,
+		exit = "running...",
+		stdout = table.concat(run.stdout),
+		stderr = table.concat(run.stderr),
+	})
+	text = text:gsub("\n+$", "")
+	return vim.split(text, "\n", { plain = true })
+end
+
 --- Write the run artifacts of an indicator: exit code, file hash and logs.
 --- @param cfg indicate.Config
 --- @param ind indicate.Indicator
 --- @param res vim.SystemCompleted
 --- @param digest string
-function M.write(cfg, ind, res, digest)
+--- @param output { stdout: string, stderr: string }? captured output, when the
+---   run was streamed (with a custom handler `res.stdout`/`res.stderr` are nil)
+function M.write(cfg, ind, res, digest, output)
 	vim.fn.mkdir(config.runs(cfg), "p")
 	config.write(config.artifact(cfg, ind, "result"), tostring(res.code or 0) .. "\n")
 	config.write(config.artifact(cfg, ind, "hash"), (digest or "") .. "\n")
-	config.write(config.artifact(cfg, ind, "logs"), log_contents(ind, config.resolve_cwd(cfg, ind), res))
+	local exit = tostring(res.code)
+	if res.signal and res.signal ~= 0 then
+		exit = exit .. (" (signal %d)"):format(res.signal)
+	end
+	config.write(
+		config.artifact(cfg, ind, "logs"),
+		format_logs({
+			command = ind.command,
+			cwd = config.resolve_cwd(cfg, ind),
+			time = os.date("%Y-%m-%d %H:%M:%S"),
+			exit = exit,
+			stdout = output and output.stdout or res.stdout or "",
+			stderr = output and output.stderr or res.stderr or "",
+		})
+	)
 end
 
 --- Run one indicator in the background.
@@ -93,16 +141,45 @@ function M.run(cfg, ind, o)
 		end
 		return false, msg
 	end
-	running[slug] = true
-	config.changed()
 	local started = log.now()
+	local run = {
+		name = ind.name,
+		command = ind.command,
+		cwd = cwd,
+		time = os.date("%Y-%m-%d %H:%M:%S"),
+		started = started,
+		stdout = {},
+		stderr = {},
+	}
+	running[slug] = run
+	config.changed()
 	log.line("run '%s' started (cwd %s)", ind.name, cwd)
-	local ok, err = log.measure("runner.spawn", pcall, vim.system, { vim.o.shell, "-c", ind.command }, { cwd = cwd, text = true }, function(res)
+
+	--- @param stream "stdout"|"stderr"
+	--- @return fun(err: string?, data: string?)
+	local function capture(stream)
+		return function(_, data)
+			if data and data ~= "" then
+				local chunks = run[stream]
+				chunks[#chunks + 1] = data
+			end
+		end
+	end
+
+	local ok, err = log.measure("runner.spawn", pcall, vim.system, { vim.o.shell, "-c", ind.command }, {
+		cwd = cwd,
+		text = true,
+		stdout = capture("stdout"),
+		stderr = capture("stderr"),
+	}, function(res)
 		vim.schedule(function()
 			running[slug] = nil
 			log.line("run '%s' finished in %.0f ms (exit %s)", ind.name, log.elapsed(started), tostring(res.code))
 			local digest, _, parts, files = hash.hash(cwd, ind.files, cfg.root)
-			M.write(cfg, ind, res, digest)
+			M.write(cfg, ind, res, digest, {
+				stdout = table.concat(run.stdout),
+				stderr = table.concat(run.stderr),
+			})
 			pcall(function()
 				require("indicate.state").remember(cfg, ind, digest, parts, files)
 			end)

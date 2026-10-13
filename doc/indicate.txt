@@ -28,7 +28,9 @@ The panel is a side window listing the indicators of the repository:
 
     r       run the indicator under the cursor
     R       run all indicators, each in its own process
-    l       show the logs of the last run of the indicator under the cursor
+    l       show the logs of the indicator under the cursor; while it is
+            running the window follows the live output, and q returns to the
+            panel
     n       create a new indicator, walking through the attributes one at a
             time
     e       edit the indicator under the cursor

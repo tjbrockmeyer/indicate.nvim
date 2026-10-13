@@ -80,6 +80,7 @@ local function autocmds()
 				timer:stop()
 			end
 			require("indicate.hash").save_cache()
+			require("indicate.ui.logs").stop()
 			require("indicate.log").close()
 		end,
 	})
