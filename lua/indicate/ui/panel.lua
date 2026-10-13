@@ -138,6 +138,7 @@ local function create_window(cfg, win)
 	vim.bo[buf].buftype = "nofile"
 	vim.bo[buf].bufhidden = "hide"
 	vim.bo[buf].swapfile = false
+	vim.bo[buf].modifiable = false
 	vim.wo[win].number = false
 	vim.wo[win].relativenumber = false
 	vim.wo[win].signcolumn = "no"
@@ -246,10 +247,9 @@ function M.refresh()
 		lines[#lines + 1] = "n new · e edit · J/K move"
 		lines[#lines + 1] = "q close"
 	end
-	local modifiable = vim.bo[buf].modifiable
 	vim.bo[buf].modifiable = true
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.bo[buf].modifiable = modifiable
+	vim.bo[buf].modifiable = false
 	vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
 	for _, mark in ipairs(marks) do
 		pcall(vim.api.nvim_buf_set_extmark, buf, ns, mark.row, 0, {
