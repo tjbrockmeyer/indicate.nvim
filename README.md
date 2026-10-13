@@ -64,6 +64,7 @@ with a `.indicate` directory yet, the panel offers to create one.
 | --- | ----------------------------------------------- |
 | `r` | run the indicator under the cursor              |
 | `R` | run **all** indicators, in parallel processes    |
+| `C` | cancel the running indicator                    |
 | `l` | show the logs (live while running)              |
 | `n` | create a new indicator with the wizard          |
 | `e` | edit the indicator under the cursor             |
@@ -79,6 +80,8 @@ with a `.indicate` directory yet, the panel offers to create one.
 - `l` opens the logs of the indicator under the cursor. While it is running
   the window follows the live output of the process; `q` closes it and moves
   the cursor back to the panel.
+- `C` cancels the run of the indicator under the cursor; its stored result and
+  logs are left as they were.
 
 The panel refreshes itself when files are written, on `FocusGained` and when
 the cwd moves to another repository.

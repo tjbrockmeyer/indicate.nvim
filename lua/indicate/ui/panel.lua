@@ -64,6 +64,12 @@ local function keymaps(buf)
 			runner.run_all(cfg_ref, { notify = true })
 		end
 	end, "Indicate: run all indicators")
+	map("C", function()
+		local ind = current_indicator()
+		if ind then
+			runner.cancel(ind.name, { notify = true })
+		end
+	end, "Indicate: cancel indicator")
 	map("l", function()
 		open_logs(current_indicator())
 	end, "Indicate: show logs")
@@ -245,7 +251,7 @@ function M.refresh()
 		hint_row = #lines - 1
 		lines[#lines + 1] = "r run · R run all · l logs"
 		lines[#lines + 1] = "n new · e edit · J/K move"
-		lines[#lines + 1] = "q close"
+		lines[#lines + 1] = "C cancel · q close"
 	end
 	vim.bo[buf].modifiable = true
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)

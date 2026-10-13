@@ -14,6 +14,8 @@ local M = {}
 --- @field started integer `uv.hrtime` value the run started at
 --- @field stdout string[] output chunks of stdout received so far
 --- @field stderr string[] output chunks of stderr received so far
+--- @field handle vim.SystemObj? process handle, used to cancel the run
+--- @field cancelled boolean? set once the run has been cancelled
 
 --- @type table<string, indicate.Run> in flight runs, keyed by indicator slug
 local running = {}
@@ -166,7 +168,7 @@ function M.run(cfg, ind, o)
 		end
 	end
 
-	local ok, err = log.measure("runner.spawn", pcall, vim.system, { vim.o.shell, "-c", ind.command }, {
+	local ok, proc = log.measure("runner.spawn", pcall, vim.system, { vim.o.shell, "-c", ind.command }, {
 		cwd = cwd,
 		text = true,
 		stdout = capture("stdout"),
@@ -174,6 +176,14 @@ function M.run(cfg, ind, o)
 	}, function(res)
 		vim.schedule(function()
 			running[slug] = nil
+			if run.cancelled then
+				log.line("run '%s' cancelled after %.0f ms", ind.name, log.elapsed(started))
+				config.changed()
+				if o.notify or opts.notify_on_run then
+					vim.notify(("Indicate: '%s' cancelled"):format(ind.name), vim.log.levels.WARN)
+				end
+				return
+			end
 			log.line("run '%s' finished in %.0f ms (exit %s)", ind.name, log.elapsed(started), tostring(res.code))
 			local digest, _, parts, files = hash.hash(cwd, ind.files, cfg.root)
 			M.write(cfg, ind, res, digest, {
@@ -199,8 +209,31 @@ function M.run(cfg, ind, o)
 	if not ok then
 		running[slug] = nil
 		config.changed()
-		return false, tostring(err)
+		return false, tostring(proc)
 	end
+	run.handle = proc
+	return true
+end
+
+--- Cancel the in-flight run of an indicator, if there is one. The run's
+--- artifacts are left untouched, so the panel and the logs keep showing the
+--- last completed run.
+--- @param name string
+--- @param o { notify?: boolean }?
+--- @return boolean whether a run was cancelled
+function M.cancel(name, o)
+	o = o or {}
+	local run = running[config.slug(name)]
+	if not run or not run.handle then
+		if o.notify then
+			vim.notify(("Indicate: '%s' is not running"):format(name), vim.log.levels.WARN)
+		end
+		return false
+	end
+	run.cancelled = true
+	pcall(function()
+		run.handle:kill(15)
+	end)
 	return true
 end
 

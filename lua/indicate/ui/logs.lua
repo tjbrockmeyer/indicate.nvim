@@ -121,6 +121,20 @@ local function start_timer()
 	timer:start(refresh_interval, refresh_interval, vim.schedule_wrap(refresh))
 end
 
+--- React to a run state change for the shown indicator: switch the open logs
+--- window to its live output once it starts running, and to the final logs once
+--- it has finished.
+function M.sync()
+	if not M.win() or not shown then
+		return
+	end
+	local running = runner.is_running(shown.ind.name)
+	render(shown.cfg, shown.ind)
+	if running then
+		start_timer()
+	end
+end
+
 --- @param cfg indicate.Config
 --- @param ind indicate.Indicator
 --- @param o { lines?: string[], title?: string }?

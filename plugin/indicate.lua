@@ -37,6 +37,7 @@ local function autocmds()
 		pattern = "IndicateChanged",
 		callback = function()
 			panel.refresh()
+			require("indicate.ui.logs").sync()
 		end,
 	})
 
