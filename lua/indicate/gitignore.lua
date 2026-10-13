@@ -186,5 +186,116 @@ function M.ignored(ignores, path, is_dir)
 	return false
 end
 
+--- @class indicate.IgnoreFrame
+--- @field base string directory the `.gitignore` of this frame is relative to
+--- @field rules indicate.GitignoreRule[]
+--- @field parts string[] components of the walked directory below `base`
+--- @field anc integer index of the last rule matching a prefix of `parts`
+
+--- @param rules indicate.GitignoreRule[]
+--- @param parts string[]
+--- @return integer index of the last rule matching any prefix of `parts`
+local function ancestor_rule(rules, parts)
+	local anc = 0
+	for j = 1, #rules do
+		local components = rules[j].components
+		for i = 1, #parts do
+			if glob.match(components, vim.list_slice(parts, 1, i)) then
+				anc = j
+				break
+			end
+		end
+	end
+	return anc
+end
+
+--- Build the matching context for the directory a walk starts in. One frame per
+--- `.gitignore` that covers `dir`, ordered deepest first like `M.load`.
+--- @param ignores indicate.Gitignore[]
+--- @param dir string
+--- @return indicate.IgnoreFrame[]
+function M.context(ignores, dir)
+	dir = vim.fs.normalize(dir)
+	local frames = {}
+	for _, ignore in ipairs(ignores) do
+		local prefix = dir_prefix(ignore.base)
+		if dir == ignore.base or vim.startswith(dir, prefix) then
+			local rel = dir == ignore.base and "" or dir:sub(#prefix + 1)
+			local parts = rel == "" and {} or vim.split(rel, "/", { plain = true })
+			frames[#frames + 1] = {
+				base = ignore.base,
+				rules = ignore.rules,
+				parts = parts,
+				anc = ancestor_rule(ignore.rules, parts),
+			}
+		end
+	end
+	return frames
+end
+
+--- Extend the context by descending into the directory `name`. Only the new
+--- component can add a match: the ancestors of a child are the ancestors of its
+--- parent plus the parent itself, which `anc` already covers, so only the rules
+--- after `anc` have to be re-checked.
+--- @param frames indicate.IgnoreFrame[]
+--- @param name string
+--- @return indicate.IgnoreFrame[]
+function M.descend(frames, name)
+	local out = {}
+	for _, frame in ipairs(frames) do
+		local parts = frame.parts
+		local child = {}
+		for i = 1, #parts do
+			child[i] = parts[i]
+		end
+		child[#parts + 1] = name
+		local rules, anc = frame.rules, frame.anc
+		for j = anc + 1, #rules do
+			if glob.match(rules[j].components, child) then
+				anc = j
+			end
+		end
+		out[#out + 1] = { base = frame.base, rules = rules, parts = child, anc = anc }
+	end
+	return out
+end
+
+--- Whether the directory a context describes is ignored.
+--- @param frames indicate.IgnoreFrame[]
+--- @return boolean
+function M.context_ignored(frames)
+	for _, frame in ipairs(frames) do
+		if frame.anc > 0 then
+			return not frame.rules[frame.anc].negated
+		end
+	end
+	return false
+end
+
+--- Whether the file `name` inside the directory a context describes is ignored.
+--- @param frames indicate.IgnoreFrame[]
+--- @param name string
+--- @return boolean
+function M.context_file_ignored(frames, name)
+	for _, frame in ipairs(frames) do
+		local parts = frame.parts
+		local file = {}
+		for i = 1, #parts do
+			file[i] = parts[i]
+		end
+		file[#parts + 1] = name
+		local rules, anc = frame.rules, frame.anc
+		for j = anc + 1, #rules do
+			if not rules[j].dir_only and glob.match(rules[j].components, file) then
+				anc = j
+			end
+		end
+		if anc > 0 then
+			return not rules[anc].negated
+		end
+	end
+	return false
+end
+
 M.load = log.wrap("gitignore.load", M.load)
 return M

@@ -101,8 +101,11 @@ function M.run(cfg, ind, o)
 		vim.schedule(function()
 			running[slug] = nil
 			log.line("run '%s' finished in %.0f ms (exit %s)", ind.name, log.elapsed(started), tostring(res.code))
-			local digest = select(1, hash.hash(cwd, ind.files, cfg.root))
+			local digest, _, parts, files = hash.hash(cwd, ind.files, cfg.root)
 			M.write(cfg, ind, res, digest)
+			pcall(function()
+				require("indicate.state").remember(cfg, ind, digest, parts, files)
+			end)
 			config.changed()
 			if o.callback then
 				o.callback(res, digest)

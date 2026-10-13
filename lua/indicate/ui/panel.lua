@@ -4,6 +4,7 @@ local opts = require("indicate.opts")
 local runner = require("indicate.runner")
 local status = require("indicate.state")
 local log = require("indicate.log")
+local hash = require("indicate.hash")
 
 local M = {}
 
@@ -175,6 +176,11 @@ function M.open()
 		vim.notify("Indicate: created " .. dir, vim.log.levels.INFO)
 		cfg = created
 	end
+	if cfg_ref and cfg_ref.dir ~= cfg.dir then
+		-- moved to another repository
+		status.invalidate_all()
+		hash.clear()
+	end
 	cfg_ref = cfg
 	local win = M.win()
 	if not win then
@@ -211,6 +217,7 @@ function M.reload()
 		return
 	end
 	cfg_ref = cfg
+	status.invalidate_all()
 	M.refresh()
 end
 
@@ -268,6 +275,29 @@ function M.refresh()
 		end
 	end
 	line_map = map
+end
+
+--- Account for a written file: re-hash it in place for every indicator whose
+--- patterns match `path`, falling back to a full invalidation when it cannot be
+--- done incrementally. Returns true when at least one indicator was affected.
+--- @param path string
+--- @return boolean
+function M.file_written(path)
+	local cfg = cfg_ref
+	if not cfg or type(path) ~= "string" or path == "" then
+		return false
+	end
+	local affected = 0
+	for _, ind in ipairs(cfg.indicators) do
+		if hash.matches(config.resolve_cwd(cfg, ind), ind.files, cfg.root, path) then
+			status.touch(cfg, ind, path)
+			affected = affected + 1
+		end
+	end
+	if affected > 0 then
+		log.line("file_written %s: %d indicator(s)", path, affected)
+	end
+	return affected > 0
 end
 
 M.refresh = log.wrap("panel.refresh", M.refresh)

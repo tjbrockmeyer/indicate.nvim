@@ -101,4 +101,9 @@ indented so a slow outer operation can be traced back to the inner one that
 dominates it. Set `debug = false` to stop writing the log; it is rotated to
 `indicate.log.1` once it grows past 2 MiB.
 
+The matched file list is cached and reused across refreshes, so editing a file
+does not walk the tree; it is only re-walked when a directory changes (a file
+added, removed or renamed). A write re-hashes just the written file for the
+indicators whose patterns match it; the rest of the cached list is reused.
+
 vim:tw=78:ts=8:noet:ft=help:norl:

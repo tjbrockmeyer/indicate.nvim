@@ -43,9 +43,19 @@ local function autocmds()
 	-- files changed on disk: the stored hashes may now be stale
 	vim.api.nvim_create_autocmd({ "BufWritePost", "FocusGained" }, {
 		group = group,
-		callback = function()
+		callback = function(args)
 			if not panel.win() then
 				return
+			end
+			if args.event == "FocusGained" then
+				-- files may have changed outside of nvim: recompute everything
+				require("indicate.state").invalidate_all()
+			elseif args.file and args.file ~= "" then
+				-- a write can only affect the indicators that match the file
+				local path = vim.fs.normalize(vim.fn.fnamemodify(args.file, ":p"))
+				if not panel.file_written(path) then
+					return
+				end
 			end
 			debounced(function()
 				panel.refresh()

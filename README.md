@@ -116,11 +116,16 @@ indented, so a slow outer operation can be traced back to the inner one that
 dominates it:
 
 ```
-2025-06-01 10:00:00 | panel.refresh: 18.40 ms
-2025-06-01 10:00:00 |   state.status(unit tests): 15.10 ms
-2025-06-01 10:00:00 |     hash.hash: 14.90 ms 1203 file(s)
-2025-06-01 10:00:00 |       hash.files: 9.70 ms 1203 file(s)
+2025-06-01 10:00:00 | panel.refresh: 1.20 ms
+2025-06-01 10:00:00 |   state.status(unit tests): 0.90 ms
+2025-06-01 10:00:00 |     hash.hash: 0.80 ms 1203 file(s)
+2025-06-01 10:00:00 |       hash.files: cached (1203 file(s))
 ```
+
+The matched file list is cached and reused across refreshes, so editing a file
+does not walk the tree; it is only re-walked when a directory changes (a file
+added, removed or renamed). A write re-hashes just the written file for the
+indicators whose patterns match it; the rest of the cached list is reused.
 
 Set `debug = false` to stop writing the log; it is rotated to
 `indicate.log.1` once it grows past 2 MiB.
