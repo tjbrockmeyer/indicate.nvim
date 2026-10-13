@@ -55,6 +55,13 @@ local always_ignore = {
 
 --- @param stat vim.uv.fs_stat.result?
 --- @return integer? mtime in milliseconds
+--- @class indicate.HashStats
+--- @field read integer files whose contents were read
+--- @field cached integer files served from the in memory cache
+--- @field bytes integer bytes read
+--- @field io_ns integer nanoseconds spent opening and reading the files
+--- @field sha_ns integer nanoseconds spent hashing the contents
+
 local function mtime_ms(stat)
 	if not stat or not stat.mtime then
 		return nil
@@ -357,10 +364,13 @@ function M.matches(cwd, patterns, root, path)
 	return false
 end
 
---- sha256 of the file contents, cached by (size, mtime).
+--- sha256 of the file contents, cached by (size, mtime). When `stats` is given
+--- it records how many files had to be read, how many bytes that was and how
+--- long the read and the hashing took, for the `hash.hash` log line.
 --- @param path string
+--- @param stats indicate.HashStats?
 --- @return string?
-function M.digest(path)
+function M.digest(path, stats)
 	local stat = vim.uv.fs_stat(path)
 	if not stat or stat.type ~= "file" then
 		return nil
@@ -368,8 +378,12 @@ function M.digest(path)
 	local mtime = mtime_ms(stat) or 0
 	local entry = cache[path]
 	if entry and entry.size == stat.size and entry.mtime == mtime then
+		if stats then
+			stats.cached = stats.cached + 1
+		end
 		return entry.hash
 	end
+	local before = vim.uv.hrtime()
 	local fd = io.open(path, "rb")
 	if not fd then
 		return nil
@@ -379,8 +393,15 @@ function M.digest(path)
 	if not contents then
 		return nil
 	end
+	local read = vim.uv.hrtime()
 	local digest = vim.fn.sha256(contents)
 	cache[path] = { size = stat.size, mtime = mtime, hash = digest }
+	if stats then
+		stats.read = stats.read + 1
+		stats.bytes = stats.bytes + #contents
+		stats.io_ns = stats.io_ns + (read - before)
+		stats.sha_ns = stats.sha_ns + (vim.uv.hrtime() - read)
+	end
 	return digest
 end
 
@@ -419,14 +440,24 @@ function M.hash(cwd, patterns, root)
 	local token = log.start("hash.hash")
 	local files = M.files(cwd, patterns, root)
 	local parts = {}
+	local stats = { read = 0, cached = 0, bytes = 0, io_ns = 0, sha_ns = 0 }
 	for _, path in ipairs(files) do
-		local digest = M.digest(path)
+		local digest = M.digest(path, stats)
 		if digest then
 			parts[path] = M.part(cwd, path, digest)
 		end
 	end
 	local digest, count = M.aggregate(files, parts)
-	log.stop(token, "%d file(s)", count)
+	log.stop(
+		token,
+		"%d file(s), %d read (%.1f MB, io %.1f ms, sha %.1f ms), %d cached",
+		count,
+		stats.read,
+		stats.bytes / 1048576,
+		stats.io_ns / 1e6,
+		stats.sha_ns / 1e6,
+		stats.cached
+	)
 	return digest, count, parts, files
 end
 
